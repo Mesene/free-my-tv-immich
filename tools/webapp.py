@@ -15,13 +15,22 @@ import translate  # noqa: E402  (the catalogues and the keys the web app uses)
 
 GENERIC = {'tmdbKey': '', 'tmdbRegion': '', 'latitude': '', 'longitude': '', 'city': '', 'language': 'auto',
            'currency': '', 'temperature': 'auto', 'theme': 'auto', 'showCrypto': True, 'hideAnimation': False, 'hideApps': [],
-           'shelfApps': [], 'drawerFirst': False, 'openPicksIn': 'apps', 'clockFormat': 'auto'}
+           'shelfApps': [], 'drawerFirst': False, 'openPicksIn': 'apps', 'clockFormat': 'auto',
+           'immichServer': '', 'immichEmail': '', 'immichPassword': '', 'immichAlbum': '', 'immichMinutes': '10'}
+
+IMMICH_KEYS = ('immichServer', 'immichEmail', 'immichPassword', 'immichAlbum', 'immichMinutes')
 
 
 def config_from_args(args):
     """The settings for these command-line arguments (--generic, --config PATH or config.properties)."""
     if '--generic' in args:
-        return dict(GENERIC)
+        config = dict(GENERIC)
+        # --generic --config FILE: the release's settings, plus only the Immich ones from FILE (your photos).
+        if '--config' in args:
+            mine = read_config(os.path.abspath(args[args.index('--config') + 1]))
+            for k in IMMICH_KEYS:
+                config[k] = mine[k]
+        return config
     path = os.path.join(ROOT, 'config.properties')
     if '--config' in args:
         path = os.path.abspath(args[args.index('--config') + 1])
@@ -76,6 +85,13 @@ def read_config(path):
         'openPicksIn': 'nuvio' if values.get('open_picks_in', '').strip().lower() == 'nuvio' else 'apps',
         # 24 or 12 forces the clock; auto follows the language's catalogue.
         'clockFormat': values.get('clock_format', '').strip() if values.get('clock_format', '').strip() in ('24', '12') else 'auto',
+        # LG and Samsung: an Immich album's photos as the home screen's background (web/photos.js). The email and
+        # password go into the package: an account made for the TV, with only that album shared with it.
+        'immichServer': values.get('immich_server', '').strip(),
+        'immichEmail': values.get('immich_email', '').strip(),
+        'immichPassword': values.get('immich_password', ''),
+        'immichAlbum': values.get('immich_album', '').strip(),
+        'immichMinutes': number('immich_minutes', '10'),
     }
 
 

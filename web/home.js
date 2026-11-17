@@ -590,6 +590,32 @@
     img.src = url;
   }
 
+  var picFront = 'picA';
+
+  /** One of your Immich photos (photos.js) as the whole background, sharp, faded in over the last one. */
+  function photoBackground(url) {
+    var next = picFront === 'picA' ? 'picB' : 'picA', img = new Image();
+    img.onload = function () {
+      var n = $(next), w = img.naturalWidth || 16, h = img.naturalHeight || 9;
+      // Upright and square photos whole, over themselves blurred (drawn tiny and stretched, as the picks' backdrop:
+      // no CSS blur for the TV's GPU); wide ones fill the screen. 4:3 still fills: it loses only a quarter.
+      var whole = w / h < 1.2, canvas = n.firstChild, ctx = canvas.getContext('2d');
+      if (whole) {
+        var cw = canvas.width, ch = canvas.height, s = Math.max(cw / w, ch / h);
+        ctx.clearRect(0, 0, cw, ch);
+        ctx.drawImage(img, (cw - w * s) / 2, (ch - h * s) / 2, w * s, h * s);
+      }
+      setClass(n, 'whole', whole);
+      n.lastChild.style.backgroundImage = 'url(' + url + ')';
+      setClass(n, 'on', true);
+      setClass($(picFront), 'on', false);
+      picFront = next;
+      setClass(body, 'photo', true);
+      checkNight();
+    };
+    img.src = url;
+  }
+
   // As HomeView's bgFollow: the background follows the focused pick.
   var BG_FOLLOW_MS = 500, bgTimer = 0;
 
@@ -1728,7 +1754,8 @@
   var lastNight = null;
 
   function checkNight() {
-    var night = Data.isNight(Date.now());
+    // Over your own photo the night look reads best (light text, dark glass), day or night.
+    var night = Data.isNight(Date.now()) || Photos.active();
     setClass(body, 'night', night);
     if (night === lastNight) return;
     lastNight = night;
@@ -1986,6 +2013,7 @@
     idleAt = Date.now();
     TV.noteChannel();   // back from the viewer: the antenna channel it played, for Live TV
     if (TV.name === 'tizen') { renderClock(); checkNight(); applyDim(); }   // what resting() left as it was
+    Photos.next();   // back on the home screen: another of your photos
     loadApps(function () { renderShelf(); renderDrawer(); updateFocus(); Data.refresh(); });
   });
 
@@ -1993,6 +2021,7 @@
   direction();
   I18N.setClock(Prefs.clockFormat());
   checkNight();   // now, from the last forecast: not after the TV lists its apps, with the day look until then
+  Photos.start(photoBackground);   // your Immich photos, from the copy on the TV: at once
   // LG's screensaver waits only when ours will show: not under a sheet (ours waits there), and not without photos.
   TV.holdScreenSaver(function () { return !sheetOpen() && (saverMode() === 'clock' || saverPhotos().length > 0); });
   fit();

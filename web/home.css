@@ -64,6 +64,20 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 #sky .night { background: -webkit-linear-gradient(top, #1C1C1E, #0B0B0D); background: linear-gradient(#1C1C1E, #0B0B0D); opacity: 0; }
 #sky canvas { position: absolute; left: -4%; top: -4%; width: 108%; height: 108%; opacity: 0; -webkit-transition: opacity 0.8s; transition: opacity 0.8s; }
 #sky canvas.on { opacity: 1; }
+/* Your Immich photos (photos.js): sharp, over the whole screen; the veil turns into a shade where the text is. */
+#sky .pic { position: absolute; left: 0; top: 0; width: 100%; height: 100%; overflow: hidden; background: #000; opacity: 0; -webkit-transition: opacity 1.6s; transition: opacity 1.6s; }
+#sky .pic.on { opacity: 1; }
+#sky .pic .img { position: absolute; left: 0; top: 0; width: 100%; height: 100%; background-size: cover; background-position: center; background-repeat: no-repeat; }
+#sky .pic canvas { display: none; }
+/* Upright photos whole, over themselves blurred and a little darker. */
+#sky .pic.whole .img { background-size: contain; }
+#sky .pic.whole canvas { display: block; opacity: 0.75; }
+.photo #bgA, .photo #bgB { display: none; }
+.photo #sky .veil, .photo.night #sky .veil {
+  background: -webkit-linear-gradient(top, rgba(0, 0, 0, 0.42), rgba(0, 0, 0, 0.08) 38%, rgba(0, 0, 0, 0.08) 58%, rgba(0, 0, 0, 0.5));
+  background: linear-gradient(rgba(0, 0, 0, 0.42), rgba(0, 0, 0, 0.08) 38%, rgba(0, 0, 0, 0.08) 58%, rgba(0, 0, 0, 0.5));
+}
+.photo #clock { text-shadow: 0 2px 18px rgba(0, 0, 0, 0.45); }
 #sky .veil { position: absolute; left: 0; top: 0; width: 100%; height: 100%; background: rgba(245, 245, 247, 0.74); -webkit-transition: background-color 2s; transition: background-color 2s; }
 #sky .lift { position: absolute; left: 0; top: 0; width: 100%; height: 100%; background: #FFF; opacity: 0; -webkit-transition: opacity 0.45s, background-color 2s; transition: opacity 0.45s, background-color 2s; }
 .night #sky .day { opacity: 0; }
