@@ -87,12 +87,25 @@ def read_config(path):
         'clockFormat': values.get('clock_format', '').strip() if values.get('clock_format', '').strip() in ('24', '12') else 'auto',
         # LG and Samsung: an Immich album's photos as the home screen's background (web/photos.js). The email and
         # password go into the package: an account made for the TV, with only that album shared with it.
-        'immichServer': values.get('immich_server', '').strip(),
+        'immichServer': lan_server(values.get('immich_server', '').strip()),
         'immichEmail': values.get('immich_email', '').strip(),
         'immichPassword': values.get('immich_password', ''),
         'immichAlbum': values.get('immich_album', '').strip(),
         'immichMinutes': number('immich_minutes', '10'),
     }
+
+
+def lan_server(url):
+    """As build.sh's lan_server: plain http:// only to the home network (the password would go in the clear)."""
+    m = re.match(r'^http://([^/:]+)', url)
+    if m:
+        host = m.group(1).lower()
+        private = (re.match(r'^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|127\.)', host)
+                   or re.search(r'\.(local|lan|home\.arpa)$', host) or '.' not in host)
+        if not private:
+            sys.exit('config.properties: immich_server over plain http:// must be on your own network (%s); '
+                     'use its https:// address instead' % host)
+    return url
 
 
 def coins():
