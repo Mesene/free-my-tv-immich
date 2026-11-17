@@ -1,0 +1,59 @@
+# Keeps this fork up to date with the original project (simbasjungles/free-my-tv):
+#   main                = an exact copy of the original's main
+#   immich-background   = main + the Immich background (web/photos.js), the branch the TV's package is built from
+# Every Monday (or by hand: Actions > Sync with upstream > Run workflow) main takes the original's new commits and
+# they are merged into immich-background. If they clash with our changes, nothing is pushed and an issue says so.
+# Scheduled workflows only run from the default branch: immich-background has to be the repo's default branch.
+name: Sync with upstream
+
+on:
+  schedule:
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: immich-background
+          fetch-depth: 0
+
+      - name: Bring main up to date with the original
+        run: |
+          git remote add upstream https://github.com/simbasjungles/free-my-tv.git
+          git fetch upstream main
+          git push origin upstream/main:refs/heads/main
+          echo "UPSTREAM=$(git rev-parse --short upstream/main)" >> "$GITHUB_ENV"
+
+      - name: Merge it into immich-background
+        id: merge
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898333+github-actions[bot]@users.noreply.github.com"
+          if git merge-base --is-ancestor upstream/main HEAD; then
+            echo "Already up to date with the original ($UPSTREAM)."
+            exit 0
+          fi
+          if git merge --no-edit -m "Merge the original's main ($UPSTREAM)" upstream/main; then
+            git push origin immich-background
+          else
+            git merge --abort
+            echo "conflict=true" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+
+      - name: Say so when it clashes
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          title="The original's changes need a hand ($UPSTREAM)"
+          if ! gh issue list --state open --search "$title in:title" --json number --jq '.[0].number' | grep -q .; then
+            gh issue create --title "$title" --body "The weekly sync couldn't bring the original's latest main ($UPSTREAM) into immich-background on its own: they changed something our Immich background also changes, or the push was refused (a commit that changes .github/workflows needs to be pushed by hand). See the run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          fi
