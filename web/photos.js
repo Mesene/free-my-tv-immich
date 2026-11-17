@@ -270,12 +270,23 @@ var Photos = (function () {
     });
   }
 
+  /** A random photo's own address (the screensaver's: whoever takes it lets it go with URL.revokeObjectURL). */
+  var lastRandom = null;
+  function random(done) {
+    if (!ON || !db || !ids.length) { done(null); return; }
+    var id;
+    do { id = ids[Math.floor(Math.random() * ids.length)]; } while (ids.length > 1 && id === lastRandom);
+    lastRandom = id;
+    getBlob(id, function (blob) { done(blob ? URL.createObjectURL(blob) : null); });
+  }
+
   return {
     enabled: function () { return ON; },
     /** Whether a photo of yours is on the background now. */
     active: function () { return ON && !!shown; },
     start: start,
     next: next,
+    random: random,
     refresh: refresh,
     count: function () { return ids.length; }
   };

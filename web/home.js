@@ -592,28 +592,51 @@
 
   var picFront = 'picA';
 
-  /** One of your Immich photos (photos.js) as the whole background, sharp, faded in over the last one. */
-  function photoBackground(url) {
-    var next = picFront === 'picA' ? 'picB' : 'picA', img = new Image();
+  /**
+   * Paints one of your Immich photos (photos.js) into box (a canvas and a div, see #sky .pic): wide ones fill it,
+   * upright and square ones show whole over themselves blurred (drawn tiny and stretched, as the picks' backdrop: no
+   * CSS blur for the TV's GPU). 4:3 still fills: it loses only a quarter. done() once it's decoded.
+   */
+  function paintPhoto(box, url, done) {
+    var img = new Image();
     img.onload = function () {
-      var n = $(next), w = img.naturalWidth || 16, h = img.naturalHeight || 9;
-      // Upright and square photos whole, over themselves blurred (drawn tiny and stretched, as the picks' backdrop:
-      // no CSS blur for the TV's GPU); wide ones fill the screen. 4:3 still fills: it loses only a quarter.
-      var whole = w / h < 1.2, canvas = n.firstChild, ctx = canvas.getContext('2d');
+      var w = img.naturalWidth || 16, h = img.naturalHeight || 9;
+      var whole = w / h < 1.2, canvas = box.firstChild, ctx = canvas.getContext('2d');
       if (whole) {
         var cw = canvas.width, ch = canvas.height, s = Math.max(cw / w, ch / h);
         ctx.clearRect(0, 0, cw, ch);
         ctx.drawImage(img, (cw - w * s) / 2, (ch - h * s) / 2, w * s, h * s);
       }
-      setClass(n, 'whole', whole);
-      n.lastChild.style.backgroundImage = 'url(' + url + ')';
-      setClass(n, 'on', true);
+      setClass(box, 'whole', whole);
+      box.lastChild.style.backgroundImage = 'url(' + url + ')';
+      done();
+    };
+    img.onerror = function () { done(true); };
+    img.src = url;
+  }
+
+  /** A canvas and a div in parent, for paintPhoto. */
+  function photoBox(parent, cls) {
+    var box = el('div', cls, parent), canvas = el('canvas', '', box);
+    canvas.width = 48;
+    canvas.height = 27;
+    el('div', 'img', box);
+    return box;
+  }
+
+  var picFront = 'picA';
+
+  /** One of your Immich photos as the whole background, sharp, faded in over the last one. */
+  function photoBackground(url) {
+    var next = picFront === 'picA' ? 'picB' : 'picA';
+    paintPhoto($(next), url, function (failed) {
+      if (failed) return;
+      setClass($(next), 'on', true);
       setClass($(picFront), 'on', false);
       picFront = next;
       setClass(body, 'photo', true);
       checkNight();
-    };
-    img.src = url;
+    });
   }
 
   // As HomeView's bgFollow: the background follows the focused pick.
@@ -1792,12 +1815,60 @@
     return Data.showcase().filter(function (p) { return p.backdrop && Data.usable(p.app); });
   }
 
+  /** Whether the Photos screensaver has something to show: your Immich photos, or else the picks. */
+  function saverHasPhotos() { return Photos.count() > 0 || saverPhotos().length > 0; }
+
+  var saverUrls = [];
+
+  /** The screensaver with your Immich photos (photos.js), from the copy on the TV, in place of the picks. */
+  function showMineSaver(s, clock) {
+    var a = photoBox(s, 'photo mine'), b = photoBox(s, 'photo mine'), front = a;
+    s.insertBefore(b, s.firstChild);
+    s.insertBefore(a, s.firstChild);
+    clock.children[2].textContent = '';
+    clock.children[3].textContent = '';
+    function next() {
+      if (!saverOn) return;
+      Photos.random(function (url) {
+        if (!saverOn || !url) { if (url) URL.revokeObjectURL(url); return; }
+        var back = front === a ? b : a;
+        back.style.webkitTransform = back.style.transform = 'scale(1.0)';
+        paintPhoto(back, url, function (failed) {
+          if (!saverOn || failed) return;
+          setTimeout(function () {
+            setClass(back, 'on', true);
+            setClass(front, 'on', false);
+            back.style.webkitTransform = back.style.transform = 'scale(1.08) translateX(-1.5%)';
+            front = back;
+          }, 60);
+          // Each photo's address is let go once it has faded out (two later).
+          saverUrls.push(url);
+          while (saverUrls.length > 2) URL.revokeObjectURL(saverUrls.shift());
+        });
+      });
+      tickSaverClock(clock);
+      saverTimer = setTimeout(next, 12000);
+    }
+    next();
+  }
+
   function showSaver() {
     var photos = saverPhotos();
     saverOn = true;
     saverPick = null;
     var s = $('saver');
     s.innerHTML = '';
+    if (Photos.count() > 0) {
+      el('div', 'shade', s);
+      var mine = el('div', 'clock', s);
+      el('div', 'time', mine);
+      el('div', 'date', mine);
+      el('div', 'title', mine);
+      el('div', 'hint', mine);
+      setClass(s, 'on', true);
+      showMineSaver(s, mine);
+      return;
+    }
     var a = el('div', 'photo', s), b = el('div', 'photo', s);
     el('div', 'shade', s);
     var clock = el('div', 'clock', s);
@@ -1842,6 +1913,10 @@
     saverOn = false;
     clearTimeout(saverTimer);
     setClass($('saver'), 'on', false);
+    // The last photos' addresses go once the screensaver has faded out.
+    var urls = saverUrls;
+    saverUrls = [];
+    setTimeout(function () { for (var i = 0; i < urls.length; i++) URL.revokeObjectURL(urls[i]); }, 1500);
   }
 
   // MARK: - The clock screensaver: a clock, the date and the weather, drifting slowly for OLED panels
@@ -2023,7 +2098,7 @@
   checkNight();   // now, from the last forecast: not after the TV lists its apps, with the day look until then
   Photos.start(photoBackground);   // your Immich photos, from the copy on the TV: at once
   // LG's screensaver waits only when ours will show: not under a sheet (ours waits there), and not without photos.
-  TV.holdScreenSaver(function () { return !sheetOpen() && (saverMode() === 'clock' || saverPhotos().length > 0); });
+  TV.holdScreenSaver(function () { return !sheetOpen() && (saverMode() === 'clock' || saverHasPhotos()); });
   fit();
   renderTop();
   applyDim();
